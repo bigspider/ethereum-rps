@@ -27,3 +27,29 @@ As a toy example, there are some limitations that would have to be addressed in 
 - The contract can only handle one game at the time. Easy to generalize to many simultaneous games.
 - While a player might join the game thinking that he is the first player, another user might concurrently send a transaction and become the first player, which might not be what the first user had in mind (not a big deal).
 - No attention given to a decent UX!
+
+# Running it
+
+Install npm, truffle, ganache and MetaMask. 
+
+## Step 1. Clone the project
+`git clone https://github.com/bigspider/ethereum-rps`
+
+## Step 2. Install dependencies
+```
+$ cd ethereum-rps
+$ npm install
+```
+## Step 3. Start Ganache
+Start ganache by your favorite method.
+
+## Step 4. Deploy Smart Contract
+`$ truffle migrate --reset`
+
+## Step 5. Configure Metamask
+Connect metamask to the local blockchain (Localhost 8545)
+
+## Step 6. Run Demo UX
+`$ npm run start`
+
+The dapp will be served at http://localhost:3000
