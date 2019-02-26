@@ -1,5 +1,5 @@
 import React from 'react';
-import BottomNavigation from 'components/BottomNavigation'
+import BottomNavigation from 'components/BottomNavigation';
 import RPSContext from 'contexts/RPSContext';
 import { styles } from './styles.scss';
 
