@@ -3,16 +3,16 @@ pragma solidity >=0.4.21 <0.6.0;
 contract RPS {
     uint constant PRICE = 0.1 ether;
     uint constant BOND = 0.01 ether;
-    uint constant DEADLINE = 1 minutes;
+    uint constant DEADLINE = 1 minutes; // Probably use a longer deadline in real life!
 
-    //Lose is a special value for failure to follow the protocol
+    // Lose is a special value for failure to follow the protocol
     enum Choice { Rock, Paper, Scissors, Lose }
 
     enum Phase { Init, Commit, Reveal }
 
     Phase public phase = Phase.Init;
 
-    address payable[] public players; //dynamic array, game starts when length == 2
+    address payable[] public players; // dynamic array, game starts when length == 2
 
     bool[2] public committed;
     bytes32[2] public commitments;
@@ -20,9 +20,9 @@ contract RPS {
     bool[2] public revealed;
     Choice[2] public choices;
 
-    uint public curGame = 1; //Incremented every time
+    uint public curGame = 1; // Incremented every time
 
-    uint public timeoutStartTime; //Starting time of the last "meaningful" event, for timeouts.
+    uint public timeoutStartTime; // Starting time of the last "meaningful" event, for timeouts.
 
     event PhaseChange(Phase newPhase);
     event PlayerRegistered(address payable playerAddr);
@@ -30,13 +30,13 @@ contract RPS {
     event PlayerRevealed(uint8 player, Choice choice);
     event GameOver(uint gameNumber, address payable[] players, Choice[2] choices, int8 winner, string reason);
 
-    //Only allow when the contract is in a certain phase
+    // Only allow when the contract is in a certain phase
     modifier onlyInPhase(Phase _phase) {
         require(phase == _phase, "This function cannot be called in this phase");
         _;
     }
 
-    //Only allow registered player(s)
+    // Only allow registered player(s)
     modifier onlyPlayers() {
         require(
             (players.length >= 1 && msg.sender == players[0]) || (players.length == 2 && msg.sender == players[1]),
@@ -81,19 +81,19 @@ contract RPS {
     }    
 
 
-    //Implements the logic of the game. Returns -1 if draw, or the index of the winner (0 or 1) otherwise.
+    // Implements the logic of the game. Returns -1 if draw, or the index of the winner (0 or 1) otherwise.
     function getWinner(Choice choice0, Choice choice1) internal pure returns (int8) {
         if (choice0 == choice1) {
             return -1;
         }
 
-        //Handle first cases of failure to follow the protocol
+        // Handle first cases of failure to follow the protocol
         if (choice0 == Choice.Lose) {
             return 1;
         } else if (choice1 == Choice.Lose) {
             return 0;
         } else {
-            //Both player followed the protocol
+            // Both player followed the protocol
             // Rock := 0; Paper := 1; Scissors := 2
             // a loses to b if (a + 1) % 3 == b.
             if ((uint8(choice0) + 1) % 3 == uint8(choice1)) {
@@ -105,7 +105,7 @@ contract RPS {
     }
 
 
-    //Starts the timeout (for abort or forfeits)
+    // Starts the timeout (for abort or forfeits)
     function startClock() internal {
         timeoutStartTime = now;
     }
@@ -115,7 +115,7 @@ contract RPS {
         emit PhaseChange(newPhase);
     }
 
-    //Returns the index of the current player; reverts if sender is not a player
+    // Returns the index of the current player; reverts if sender is not a player
     function playerNumber() internal view returns (uint8) {
         for (uint8 i = 0; i < players.length; i++) {
             if (players[i] == msg.sender) {
@@ -126,7 +126,7 @@ contract RPS {
         revert();
     }
 
-    //Reset contract, always call when game ends
+    // Reset contract, always call when game ends
     function cleanup() internal {
         delete players;
         delete committed;
@@ -138,9 +138,9 @@ contract RPS {
         curGame++;
     }
 
-    //Allows to pull out after a long enough timeout.
-    //The price is refunded to each participant, but the caller gets all the bonds.
-    function abort() public onlyPlayers() {
+    // Allows to pull out after a long enough timeout.
+    // The price is refunded to each participant, but the caller gets all the bonds.
+    function abort() public onlyPlayers {
         require(now >= timeoutStartTime + DEADLINE);
 
         uint8 player = playerNumber();
@@ -150,23 +150,25 @@ contract RPS {
             (phase == Phase.Commit && committed[player]) // The other player did not play
         );
 
-        //Return funds
+        // Temporary copy
+        address payable[2] memory playersCopy = [players[0], players[1]];
+
+        cleanup(); // Cleanup before payouts (prevents reentrancy)
+
+        // Using send for payouts to prevent unwanted reverts
         for (uint i = 0; i < players.length; i++) {
-            players[i].transfer(PRICE);
+            playersCopy[i].send(PRICE);
         }
 
-        //Pay all bonds to caller
-        msg.sender.transfer(BOND * players.length);
+        //Pay all bonds to the caller
+        msg.sender.send(BOND * players.length);
 
         emit GameOver(curGame, players, [Choice.Lose, Choice.Lose], int8(player), "abort");
-
-        cleanup();
     }
 
     /* INIT */
     function register() public payable costs(PRICE + BOND) onlyInPhase(Phase.Init) {
-        //Make sure he is not playing against himself
-        //TODO: remove? Their fault anyway and not a disaster.
+        // Make sure he is not playing against himself
         if (players.length == 1) {
             require(players[0] != msg.sender, "You are already registered, wait for a second player!");
         }
@@ -208,18 +210,21 @@ contract RPS {
 
         emit GameOver(curGame, players, choices, winner, "end");
 
-        //Payouts
+        // Temporary copy
+        address payable[2] memory playersCopy = [players[0], players[1]];
+
+        cleanup(); // Cleanup before issuing payouts
+
+        // Payouts (using sent instead of transfer to prevent reverts)
         if (winner == -1) {
-            //Draw
-            players[0].transfer(PRICE + BOND);
-            players[1].transfer(PRICE + BOND);
+            // Draw
+            playersCopy[0].send(PRICE + BOND);
+            playersCopy[1].send(PRICE + BOND);
         } else {
             //Winner takes the prize; refund bond to loser.
-            players[uint256(winner)].transfer(2*PRICE + BOND);
-            players[1 - uint256(winner)].transfer(BOND);
+            playersCopy[uint256(winner)].send(2*PRICE + BOND);
+            playersCopy[1 - uint256(winner)].send(BOND);
         }
-
-        cleanup();
     }
 
     function reveal(Choice choice, bytes32 nonce) public onlyInPhase(Phase.Reveal) onlyPlayers {
