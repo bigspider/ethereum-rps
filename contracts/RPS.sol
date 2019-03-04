@@ -234,7 +234,9 @@ contract RPS {
 
         revealed[player] = true;
         
-        if (keccak256(abi.encodePacked(uint8(choice), nonce)) == commitments[player]) {
+        // The commitment also includes the player's number, to prevent the second committing player to
+        // copy the commitment of the first (thus guaranteeing a draw!).
+        if (keccak256(abi.encodePacked(player, uint8(choice), nonce)) == commitments[player]) {
             choices[player] = choice;
             emit PlayerRevealed(player, choice);
         } else {

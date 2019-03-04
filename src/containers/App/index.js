@@ -97,8 +97,12 @@ class App extends React.Component {
     clearInterval(this.accountInterval);
   }
 
-  computeChoiceCommitment = (choice, nonce) => {
+  computeChoiceCommitment = (playerNumber, choice, nonce) => {
     return soliditySha3({
+      type: 'uint8',
+      value: playerNumber
+    },
+    {
       type: 'uint8',
       value: choice
     },
@@ -148,9 +152,9 @@ class App extends React.Component {
 
   onMakeMove = (choice) => {
     const nonce = soliditySha3({ type: "bytes32", value: randomHex(32) }); //TODO: better way of generating the nonce?
-    const comm = this.computeChoiceCommitment(choice, nonce);
-
     const playerNumber = this.state.players.indexOf(this.state.account);
+
+    const comm = this.computeChoiceCommitment(playerNumber, choice, nonce);
 
     localStorage.setItem(`choice${playerNumber}`, choice);
     localStorage.setItem(`nonce${playerNumber}`, nonce);
